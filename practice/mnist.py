@@ -95,8 +95,6 @@ print(cross_val_score(sgd_clf, X_train, y_train_5, cv=3, scoring="accuracy"))
 from sklearn.model_selection import StratifiedKFold
 from sklearn.base import clone
 
-# shuffle=False가 기본값이기 때문에 random_state를 삭제하던지 shuffle=True로 지정하라는 경고가 발생합니다.
-# 0.24버전부터는 에러가 발생할 예정이므로 향후 버전을 위해 shuffle=True을 지정합니다.
 skfolds = StratifiedKFold(n_splits=3, random_state=42, shuffle=True)
 
 for train_index, test_index in skfolds.split(X_train, y_train_5):
