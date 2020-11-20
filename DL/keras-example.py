@@ -145,3 +145,4 @@ for index, image in enumerate(X_new):
 plt.subplots_adjust(wspace=0.2, hspace=0.5)
 save_fig('fashion_mnist_images_plot', tight_layout=False)
 plt.show()
+
