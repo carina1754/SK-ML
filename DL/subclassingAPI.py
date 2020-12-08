@@ -17,7 +17,7 @@ import os
 # 노트북 실행 결과를 동일하게 유지하기 위해
 np.random.seed(42)
 
-
+# 깔끔한 그래프 출력을 위해
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 mpl.rc('axes', labelsize=14)
@@ -41,29 +41,91 @@ def save_fig(fig_id, tight_layout=True, fig_extension="png", resolution=300):
 import warnings
 warnings.filterwarnings(action="ignore", message="^internal gelsd")
 
-class WideAndDeepModel(keras.models.Model):
-    def __init__(self, units=30, activation="relu", **kwargs):
-        super().__init__(**kwargs)
-        self.hidden1 = keras.layers.Dense(units, activation=activation)
-        self.hidden2 = keras.layers.Dense(units, activation=activation)
-        self.main_output = keras.layers.Dense(1)
-        self.aux_output = keras.layers.Dense(1)
-        
-    def call(self, inputs):
-        input_A, input_B = inputs
-        hidden1 = self.hidden1(input_B)
-        hidden2 = self.hidden2(hidden1)
-        concat = keras.layers.concatenate([input_A, hidden2])
-        main_output = self.main_output(concat)
-        aux_output = self.aux_output(hidden2)
-        return main_output, aux_output
+import tensorflow as tf
+from tensorflow import keras
 
-model = WideAndDeepModel(30, activation="relu")
+fashion_mnist = keras.datasets.fashion_mnist
+(X_train_full, y_train_full), (X_test, y_test) = fashion_mnist.load_data()
 
-model.compile(loss="mse", loss_weights=[0.9, 0.1], optimizer=keras.optimizers.SGD(lr=1e-3))
-history = model.fit((X_train_A, X_train_B), (y_train, y_train), epochs=10,
-                    validation_data=((X_valid_A, X_valid_B), (y_valid, y_valid)))
-total_loss, main_loss, aux_loss = model.evaluate((X_test_A, X_test_B), (y_test, y_test))
-y_pred_main, y_pred_aux = model.predict((X_new_A, X_new_B))
+print(X_train_full.shape)#훈련 세트 크기
+print(X_train_full.dtype)#훈련 세트 타입
 
-model = WideAndDeepModel(30, activation="relu")
+X_valid, X_train = X_train_full[:5000] / 255., X_train_full[5000:] / 255.
+y_valid, y_train = y_train_full[:5000], y_train_full[5000:]
+X_test = X_test / 255.
+
+class_names = ["T-shirt/top", "Trouser", "Pullover", "Dress", "Coat","Sandal", "Shirt", "Sneaker", "Bag", "Ankle boot"]
+
+n_rows = 4
+n_cols = 10
+plt.figure(figsize=(n_cols * 1.2, n_rows * 1.2))
+for row in range(n_rows):
+    for col in range(n_cols):
+        index = n_cols * row + col
+        plt.subplot(n_rows, n_cols, index + 1)
+        plt.imshow(X_train[index], cmap="binary", interpolation="nearest")
+        plt.axis('off')
+        plt.title(class_names[y_train[index]], fontsize=12)
+plt.subplots_adjust(wspace=0.2, hspace=0.5)
+save_fig('fashion_mnist_plot', tight_layout=False)
+#plt.show()
+#기본 이미지 출력
+np.random.seed(42)
+tf.random.set_seed(42)
+
+input_ = keras.layers.Input(shape=X_train.shape[1:])
+hidden1 = keras.layers.Dense(30, activation="relu")(input_)
+hidden2 = keras.layers.Dense(30, activation="relu")(hidden1)
+concat = keras.layers.concatenate([input_, hidden2])
+output = keras.layers.Dense(1)(concat)
+model = keras.models.Model(inputs=[input_], outputs=[output])
+model.compile(loss="mean_squared_error", optimizer=keras.optimizers.SGD(lr=1e-3))
+history = model.fit(X_train, y_train, epochs=20,
+                    validation_data=(X_valid, y_valid))
+mse_test = model.evaluate(X_test, y_test)
+X_new = X_test[:3]
+y_pred = model.predict(X_new)
+
+np.random.seed(42)
+tf.random.set_seed(42)
+
+input_A = keras.layers.Input(shape=[5], name="wide_input")
+input_B = keras.layers.Input(shape=[6], name="deep_input")
+hidden1 = keras.layers.Dense(30, activation="relu")(input_B)
+hidden2 = keras.layers.Dense(30, activation="relu")(hidden1)
+concat = keras.layers.concatenate([input_A, hidden2])
+output = keras.layers.Dense(1, name="output")(concat)
+model = keras.models.Model(inputs=[input_A, input_B], outputs=[output])
+model.compile(loss="mse", optimizer=keras.optimizers.SGD(lr=1e-3))
+
+X_train_A, X_train_B = X_train[:, :5], X_train[:, 2:]
+X_valid_A, X_valid_B = X_valid[:, :5], X_valid[:, 2:]
+X_test_A, X_test_B = X_test[:, :5], X_test[:, 2:]
+X_new_A, X_new_B = X_test_A[:3], X_test_B[:3]
+
+history = model.fit((X_train_A, X_train_B), y_train, epochs=20,
+                    validation_data=((X_valid_A, X_valid_B), y_valid))
+mse_test = model.evaluate((X_test_A, X_test_B), y_test)
+y_pred = model.predict((X_new_A, X_new_B))
+
+np.random.seed(42)
+tf.random.set_seed(42)
+
+input_A = keras.layers.Input(shape=[5], name="wide_input")
+input_B = keras.layers.Input(shape=[6], name="deep_input")
+hidden1 = keras.layers.Dense(30, activation="relu")(input_B)
+hidden2 = keras.layers.Dense(30, activation="relu")(hidden1)
+concat = keras.layers.concatenate([input_A, hidden2])
+output = keras.layers.Dense(1, name="main_output")(concat)
+aux_output = keras.layers.Dense(1, name="aux_output")(hidden2)
+model = keras.models.Model(inputs=[input_A, input_B],
+                           outputs=[output, aux_output])
+
+model.compile(loss=["mse", "mse"], loss_weights=[0.9, 0.1], optimizer=keras.optimizers.SGD(lr=1e-3))
+-0
+history = model.fit([X_train_A, X_train_B], [y_train, y_train], epochs=20,
+                    validation_data=([X_valid_A, X_valid_B], [y_valid, y_valid]))
+                    
+total_loss, main_loss, aux_loss = model.evaluate(
+    [X_test_A, X_test_B], [y_test, y_test])
+y_pred_main, y_pred_aux = model.predict([X_new_A, X_new_B])
